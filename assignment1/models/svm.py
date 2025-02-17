@@ -36,7 +36,44 @@ class SVM:
                 as w
         """
         # TODO: implement me
-        return
+        N = X_train.shape[0]
+
+        if self.w is None:
+            raise ValueError("w is not initialized")
+        grad_w = np.zeros(self.w.shape)
+
+        # Binary classification
+        if self.n_class == 2:
+            X_batch = X_train
+            y_batch = np.where(y_train == 0, -1, 1)
+
+            # First, calculate the gradient of regularization term
+            grad_w += self.reg_const * self.w
+
+            # Second, calculate the gradient of data loss
+            for i in range(N):
+                if y_batch[i] * np.dot(self.w.T, X_batch[i]) < 1:
+                    grad_w -= (y_batch[i] * X_batch[i] / N)
+
+
+        # Multi-class classification
+        else:
+            X_batch = X_train
+            y_batch = y_train
+
+            # First, calculate the gradient of regularization term
+            grad_w += self.reg_const * self.w
+
+            # Second, calculate the gradient of data loss
+            for i in range(N):
+                for k in range(self.n_class):
+                    score_k = np.dot(self.w[k], X_batch[i])
+                    score_yi = np.dot(self.w[y_batch[i]], X_batch[i])
+                    if k != y_batch[i] and score_yi - score_k < 1:
+                        grad_w[y_batch[i]] -= (X_batch[i] / N)
+                        grad_w[k] += (X_batch[i] / N)
+
+        return grad_w
 
     def train(self, X_train: np.ndarray, y_train: np.ndarray):
         """Train the classifier.
@@ -52,6 +89,58 @@ class SVM:
             y_train: a numpy array of shape (N,) containing training labels
         """
         # TODO: implement me
+        N, D = X_train.shape
+        # Define the size of mini-batch
+        batch_size = 8192
+
+        # Binary classification
+        if self.n_class == 2:
+            # Mean-centering
+            X_train_used = X_train - np.mean(X_train)
+            # Add bias term
+            X_train_used = np.hstack([X_train_used, np.ones((N, 1))])
+            y_train_used = y_train
+            
+            # initialze w
+            if self.w is None:
+                np.random.seed(42)
+                self.w = np.random.uniform(-1, 1, (D + 1, )) * 0.01
+
+            for epoch in range(self.epochs):
+                indices = np.random.permutation(N)
+                X_train_new = X_train_used[indices[0:batch_size], :]
+                y_train_new = y_train_used[indices[0:batch_size]]
+                
+                # Calculate the gradient and update w
+                grad_w = self.calc_gradient(X_train_new, y_train_new)
+                self.w = self.w - self.lr * grad_w
+                
+                # Update the learning rate
+                self.lr *= 0.95
+        
+        # Multi-class classification
+        else:
+            # Add bias term
+            X_train_used = np.hstack([X_train, np.ones((N, 1))])
+            y_train_used = y_train
+
+            # initialze w
+            if self.w is None:
+                np.random.seed(42)
+                self.w = np.random.uniform(-1, 1, (self.n_class, D + 1)) * 0.01
+
+            for epoch in range(self.epochs):
+                indices = np.random.permutation(N)
+                X_train_new = X_train_used[indices[0:batch_size], :]
+                y_train_new = y_train_used[indices[0:batch_size]]
+
+                # Calculate the gradient and update w
+                grad_w = self.calc_gradient(X_train_new, y_train_new)
+                self.w = self.w - self.lr * grad_w
+
+                # Update the learning rate
+                self.lr *= 0.95
+
         return
 
     def predict(self, X_test: np.ndarray) -> np.ndarray:
@@ -67,4 +156,20 @@ class SVM:
                 class.
         """
         # TODO: implement me
-        return
+        N = X_test.shape[0]
+
+        # Binary classification
+        if self.n_class == 2:
+            # Mean-centering
+            X_test_used = X_test - np.mean(X_test)
+            # Add bias term
+            X_test_used = np.hstack([X_test_used, np.ones((N, 1))])
+            y_pred = np.where(np.dot(X_test_used, self.w) >= 0, 1, 0)
+        
+        # Multi-class classification
+        else:
+            # Add bias term
+            X_test_used = np.hstack([X_test, np.ones((N, 1))])
+            y_pred = np.argmax(np.dot(X_test_used, self.w.T), axis=1)
+
+        return y_pred

@@ -31,7 +31,66 @@ class Perceptron:
             y_train: a numpy array of shape (N,) containing training labels
         """
         # TODO: implement me
-        pass
+        N, D = X_train.shape
+
+        # Binary Classification
+        if self.n_class == 2:
+            # First, pre-process the data
+            X_train_used = np.hstack([X_train, np.ones((N, 1))])  # Add bias term, the shape is (N, D+1)
+            y_train_used = np.where(y_train == 0, -1, 1) # Replace 0 with -1, the shape is (N,)
+
+            # Second, initialize w
+            if self.w is None:
+                np.random.seed(42)
+                self.w = np.random.uniform(-1, 1, size=(D + 1,)) * 0.01 # the shape is (D + 1,)
+
+            # Third, train the model
+            for epoch in range(self.epochs):
+                # Shuffle the training data
+                indices = np.random.permutation(N)
+                X_train_new = X_train_used[indices]
+                y_train_new = y_train_used[indices]
+
+                for i in range(N):
+                    # Use perceptron update rule
+                    if y_train_new[i] * (np.dot(X_train_new[i], self.w)) < 0:
+                        self.w += self.lr * y_train_new[i] * X_train_new[i]
+
+                # Update the learning8 rate (Learing rate decay)
+                self.lr *= 0.95
+        
+
+        # Multi-Class Classification
+        else:
+            # First, pre-process the data
+            X_train_used = np.hstack([X_train, np.ones((N, 1))])
+            y_train_used = y_train
+
+            # Second, initialize w
+            if self.w is None:
+                np.random.seed(100)
+                self.w = np.random.uniform(-1, 1, size=(self.n_class, D + 1)) * 0.01 # the shape is (n_class, D + 1)
+
+            # Third, train the model
+            for epoch in range(self.epochs):
+                # Shuffle the training data
+                indices = np.random.permutation(N)
+                X_train_new = X_train_used[indices]
+                y_train_new = y_train_used[indices]
+
+                for i in range(N):
+                    # Use perceptron update rule for multi-class classification
+                    scores = np.dot(self.w, X_train_new[i])
+                    # Update w if wrong class score is higher than the correct class score
+                    for k in range(self.n_class):
+                        if k != y_train_new[i] and scores[k] > scores[y_train_new[i]]:
+                            self.w[y_train_new[i]] += self.lr * X_train_new[i]
+                            self.w[k] -= self.lr * X_train_new[i]
+
+                # Update the learning rate (Learing rate decay)
+                self.lr *= 0.80
+
+        return
 
     def predict(self, X_test: np.ndarray) -> np.ndarray:
         """Use the trained weights to predict labels for test data points.
@@ -46,4 +105,20 @@ class Perceptron:
                 class.
         """
         # TODO: implement me
-        return
+        N = X_test.shape[0]
+
+        # Add bias term
+        X_test_used = np.hstack([X_test, np.ones((N, 1))])
+
+        # Binary classification
+        if self.n_class == 2:
+            # Use the trained weights to predict labels for test data points
+            y_pred = np.where(np.dot(X_test_used, self.w) >= 0, 1, 0)
+            return y_pred
+        
+        # Multi-class classification
+        else:
+            # Use the trained weights to predict labels for test data points
+            y_pred = np.argmax(np.dot(X_test_used, self.w.T), axis=1)
+            return y_pred
+        
