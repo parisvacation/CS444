@@ -91,7 +91,7 @@ class SVM:
         # TODO: implement me
         N, D = X_train.shape
         # Define the size of mini-batch
-        batch_size = 8192
+        batch_size = min(9000, N)
 
         # Binary classification
         if self.n_class == 2:

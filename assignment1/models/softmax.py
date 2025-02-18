@@ -19,6 +19,23 @@ class Softmax:
         self.reg_const = reg_const
         self.n_class = n_class
 
+    def softmax(self, scores: np.ndarray) -> np.ndarray:
+        """Calculate softmax scores.
+
+        Parameters:
+            scores: a numpy array of shape (N, C) where each column contains
+                the scores for all possible classes.
+        
+        Returns:
+            softmax scores for each example. Each row should sum to 1.
+
+        """
+        # Minus the max to avoid overflow
+        Temperature = 1
+        scores_exp = np.exp((scores - np.max(scores, axis=1, keepdims=True)) / Temperature)
+        scores_result = scores_exp / np.sum(scores_exp, axis=1, keepdims=True)
+        return scores_result
+        
     def calc_gradient(self, X_train: np.ndarray, y_train: np.ndarray) -> np.ndarray:
         """Calculate gradient of the softmax loss.
 
@@ -35,7 +52,25 @@ class Softmax:
             gradient with respect to weights w; an array of same shape as w
         """
         # TODO: implement me
-        return
+        N = y_train.shape[0]
+
+        if self.w is None:
+            ValueError("w is not initialized")
+        grad_w = np.zeros_like(self.w)
+
+        X_batch = X_train
+        y_batch = y_train
+
+        # First, calculate the gradient of regularization term
+        grad_w += self.reg_const * self.w
+
+        # Second, calculate the gradient of the data loss
+        scores = self.softmax(np.dot(X_batch, self.w.T))
+        scores[range(N), y_batch] -= 1
+        grad = scores / N
+        grad_w += np.dot(grad.T, X_batch)
+
+        return grad_w
 
     def train(self, X_train: np.ndarray, y_train: np.ndarray):
         """Train the classifier.
@@ -51,6 +86,33 @@ class Softmax:
             y_train: a numpy array of shape (N,) containing training labels
         """
         # TODO: implement me
+        N, D = X_train.shape
+        # Determine the size of mini-batches 
+        batch_size = min(4096, N)
+
+        # Preprocess the data
+        # Standardlize and add bias term
+        X_train_used = (X_train - np.mean(X_train, axis=0)) / np.std(X_train, axis=0)
+        X_train_used = np.hstack((X_train_used, np.ones((N, 1))))
+        y_train_used = y_train
+
+        # Initialize w
+        if self.w is None:
+            np.random.seed(42)
+            self.w = np.random.uniform(-1, 1, size=(self.n_class, D + 1)) * 0.01
+        
+        for epoch in range(self.epochs):
+            indices = np.random.permutation(N)
+            X_train_new = X_train_used[indices[0:batch_size], :]
+            y_train_new = y_train_used[indices[0:batch_size]]
+
+            # Calculate gradient and update w
+            grad_w = self.calc_gradient(X_train_new, y_train_new)
+            self.w -= self.lr * grad_w
+
+            # Update the learning rate
+            self.lr *= 0.95
+
         return
 
     def predict(self, X_test: np.ndarray) -> np.ndarray:
@@ -66,4 +128,12 @@ class Softmax:
                 class.
         """
         # TODO: implement me
-        return
+        N = X_test.shape[0]
+        
+        # Standardlize and add bias term
+        X_test_used = (X_test - np.mean(X_test, axis=0)) / np.std(X_test, axis=0)
+        X_test_used = np.hstack([X_test_used, np.ones((N, 1))])
+
+        y_pred = np.argmax(np.dot(X_test_used, self.w.T), axis=1)
+
+        return y_pred

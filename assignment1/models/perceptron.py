@@ -32,6 +32,10 @@ class Perceptron:
         """
         # TODO: implement me
         N, D = X_train.shape
+        # L2 Regularization weight
+        lambda_reg = 0.005
+        # Margin used for multi-class classification, but does it become specific SVM model? 
+        margin = 5.0
 
         # Binary Classification
         if self.n_class == 2:
@@ -63,7 +67,8 @@ class Perceptron:
         # Multi-Class Classification
         else:
             # First, pre-process the data
-            X_train_used = np.hstack([X_train, np.ones((N, 1))])
+            X_train_used = (X_train - np.mean(X_train, axis=0)) / np.std(X_train, axis=0)
+            X_train_used = np.hstack([X_train_used, np.ones((N, 1))])
             y_train_used = y_train
 
             # Second, initialize w
@@ -81,9 +86,11 @@ class Perceptron:
                 for i in range(N):
                     # Use perceptron update rule for multi-class classification
                     scores = np.dot(self.w, X_train_new[i])
+                    # L2 Regularization
+                    self.w *= (1 - self.lr * lambda_reg / N)
                     # Update w if wrong class score is higher than the correct class score
                     for k in range(self.n_class):
-                        if k != y_train_new[i] and scores[k] > scores[y_train_new[i]]:
+                        if k != y_train_new[i] and scores[k] > scores[y_train_new[i]] - margin:
                             self.w[y_train_new[i]] += self.lr * X_train_new[i]
                             self.w[k] -= self.lr * X_train_new[i]
 
@@ -107,17 +114,19 @@ class Perceptron:
         # TODO: implement me
         N = X_test.shape[0]
 
-        # Add bias term
-        X_test_used = np.hstack([X_test, np.ones((N, 1))])
-
         # Binary classification
         if self.n_class == 2:
+            # Add bias term
+            X_test_used = np.hstack([X_test, np.ones((N, 1))])
             # Use the trained weights to predict labels for test data points
             y_pred = np.where(np.dot(X_test_used, self.w) >= 0, 1, 0)
             return y_pred
         
         # Multi-class classification
         else:
+            # Standardlize and add bias term
+            X_test_used = (X_test - np.mean(X_test, axis=0)) / np.std(X_test, axis=0)
+            X_test_used = np.hstack([X_test_used, np.ones((N, 1))])
             # Use the trained weights to predict labels for test data points
             y_pred = np.argmax(np.dot(X_test_used, self.w.T), axis=1)
             return y_pred
