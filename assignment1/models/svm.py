@@ -52,9 +52,9 @@ class SVM:
             grad_w[:-1] += self.reg_const * self.w[:-1]
 
             # Second, calculate the gradient of data loss
-            for i in range(N):
-                if y_batch[i] * np.dot(self.w.T, X_batch[i]) < 1:
-                    grad_w -= (y_batch[i] * X_batch[i] / N)
+            margin = y_batch * (X_batch @ self.w)
+            mask = margin < 1
+            grad_w -= (X_batch[mask].T @ y_batch[mask]) / N
 
 
         # Multi-class classification
@@ -65,14 +65,17 @@ class SVM:
             # First, calculate the gradient of regularization term(without bias)
             grad_w[:, :-1] += self.reg_const * self.w[:, :-1]
 
-            # Second, calculate the gradient of data loss
-            for i in range(N):
-                for k in range(self.n_class):
-                    score_k = np.dot(self.w[k], X_batch[i])
-                    score_yi = np.dot(self.w[y_batch[i]], X_batch[i])
-                    if k != y_batch[i] and score_yi - score_k < 1:
-                        grad_w[y_batch[i]] -= (X_batch[i] / N)
-                        grad_w[k] += (X_batch[i] / N)
+            # Second, calculate the gradient of data loss            
+            scores = X_batch @ self.w.T # shape is (N, C)
+            correct_scores = scores[np.arange(N), y_batch] # shape is (N,)
+
+            margin = correct_scores[:, np.newaxis] - scores # shape is (N, C)
+            margin_mask = margin < 1
+            margin_mask[np.arange(N), y_batch] = False
+            sum_mask = np.sum(margin_mask, axis=1) # shape is (N,)
+
+            np.add.at(grad_w, y_batch, -(sum_mask[:, np.newaxis] * X_batch) / N)
+            grad_w += (margin_mask.T @ X_batch) / N
 
         return grad_w
 
@@ -92,7 +95,7 @@ class SVM:
         # TODO: implement me
         N, D = X_train.shape
         # Define the size of mini-batch
-        batch_size = min(9000, N)
+        batch_size = 9000
 
         # Binary classification
         if self.n_class == 2:
@@ -110,12 +113,19 @@ class SVM:
 
             for epoch in range(self.epochs):
                 indices = np.random.permutation(N)
-                X_train_new = X_train_used[indices[0:batch_size], :]
-                y_train_new = y_train_used[indices[0:batch_size]]
+                X_train_used = X_train_used[indices]
+                y_train_used = y_train_used[indices]
+
+                # Loop through the training data
+                for start_idx in range(0, N, batch_size):
+                    end_idx = min(start_idx + batch_size, N)
+                    batch_indices = indices[start_idx:end_idx]
+                    X_train_new = X_train_used[batch_indices]
+                    y_train_new = y_train_used[batch_indices]
                 
-                # Calculate the gradient and update w
-                grad_w = self.calc_gradient(X_train_new, y_train_new)
-                self.w = self.w - self.lr * grad_w
+                    # Calculate the gradient and update w
+                    grad_w = self.calc_gradient(X_train_new, y_train_new)
+                    self.w = self.w - self.lr * grad_w
                 
                 # Update the learning rate
                 self.lr *= 0.95
@@ -133,13 +143,20 @@ class SVM:
 
             for epoch in range(self.epochs):
                 indices = np.random.permutation(N)
-                X_train_new = X_train_used[indices[0:batch_size], :]
-                y_train_new = y_train_used[indices[0:batch_size]]
+                X_train_used = X_train_used[indices]
+                y_train_used = y_train_used[indices]
 
-                # Calculate the gradient and update w
-                grad_w = self.calc_gradient(X_train_new, y_train_new)
-                self.w = self.w - self.lr * grad_w
-
+                # Loop through the training data
+                for start_idx in range(0, N, batch_size):
+                    end_idx = min(start_idx + batch_size, N)
+                    batch_indices = indices[start_idx:end_idx]
+                    X_train_new = X_train_used[batch_indices]
+                    y_train_new = y_train_used[batch_indices]
+                
+                    # Calculate the gradient and update w
+                    grad_w = self.calc_gradient(X_train_new, y_train_new)
+                    self.w = self.w - self.lr * grad_w
+                
                 # Update the learning rate
                 self.lr *= 0.95
 
