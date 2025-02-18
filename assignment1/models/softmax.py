@@ -90,7 +90,7 @@ class Softmax:
         # TODO: implement me
         N, D = X_train.shape
         # Determine the size of mini-batches 
-        batch_size = min(4096, N)
+        batch_size = 4096
 
         # Preprocess the data
         # Standardize and add bias term
@@ -107,12 +107,19 @@ class Softmax:
         
         for epoch in range(self.epochs):
             indices = np.random.permutation(N)
-            X_train_new = X_train_used[indices[0:batch_size], :]
-            y_train_new = y_train_used[indices[0:batch_size]]
+            X_train_used = X_train_used[indices]
+            y_train_used = y_train_used[indices]
 
-            # Calculate gradient and update w
-            grad_w = self.calc_gradient(X_train_new, y_train_new)
-            self.w -= self.lr * grad_w
+            # Loop through the whole training set
+            for start_idx in range(0, N, batch_size):
+                end_idx = min(start_idx + batch_size, N)
+                batch_indices = indices[start_idx:end_idx]
+                X_train_new = X_train_used[batch_indices]
+                y_train_new = y_train_used[batch_indices]
+
+                # Calculate gradient and update w
+                grad_w = self.calc_gradient(X_train_new, y_train_new)
+                self.w -= self.lr * grad_w
 
             # Update the learning rate
             self.lr *= 0.95
