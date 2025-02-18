@@ -18,6 +18,8 @@ class Softmax:
         self.epochs = epochs
         self.reg_const = reg_const
         self.n_class = n_class
+        self.train_mean = None
+        self.train_std = None
 
     def softmax(self, scores: np.ndarray) -> np.ndarray:
         """Calculate softmax scores.
@@ -92,7 +94,9 @@ class Softmax:
 
         # Preprocess the data
         # Standardize and add bias term
-        X_train_used = (X_train - np.mean(X_train, axis=0)) / np.std(X_train, axis=0)
+        self.train_mean = np.mean(X_train, axis=0)
+        self.train_std = np.std(X_train, axis=0)
+        X_train_used = (X_train - self.train_mean) / self.train_std
         X_train_used = np.hstack((X_train_used, np.ones((N, 1))))
         y_train_used = y_train
 
@@ -131,7 +135,7 @@ class Softmax:
         N = X_test.shape[0]
         
         # Standardize and add bias term
-        X_test_used = (X_test - np.mean(X_test, axis=0)) / np.std(X_test, axis=0)
+        X_test_used = (X_test - self.train_mean) / self.train_std
         X_test_used = np.hstack([X_test_used, np.ones((N, 1))])
 
         y_pred = np.argmax(np.dot(X_test_used, self.w.T), axis=1)

@@ -16,6 +16,8 @@ class Perceptron:
         self.lr = lr
         self.epochs = epochs
         self.n_class = n_class
+        self.train_mean = None
+        self.train_std = None
 
     def train(self, X_train: np.ndarray, y_train: np.ndarray):
         """Train the classifier.
@@ -32,8 +34,8 @@ class Perceptron:
         """
         # TODO: implement me
         N, D = X_train.shape
-        # L2 Regularization weight(without margin, the optimal value is 0.005)
-        lambda_reg = 0.05
+        # L2 Regularization weight
+        lambda_reg = 0.01
         # Margin used for multi-class classification, but does it become specific SVM model? 
         margin = 5.0
 
@@ -67,7 +69,9 @@ class Perceptron:
         # Multi-Class Classification
         else:
             # First, pre-process the data
-            X_train_used = (X_train - np.mean(X_train, axis=0)) / np.std(X_train, axis=0)
+            self.train_mean = np.mean(X_train, axis=0)
+            self.train_std = np.std(X_train, axis=0)
+            X_train_used = (X_train - self.train_mean) / self.train_std
             X_train_used = np.hstack([X_train_used, np.ones((N, 1))])
             y_train_used = y_train
 
@@ -125,7 +129,7 @@ class Perceptron:
         # Multi-class classification
         else:
             # Standardize and add bias term
-            X_test_used = (X_test - np.mean(X_test, axis=0)) / np.std(X_test, axis=0)
+            X_test_used = (X_test - self.train_mean) / self.train_std
             X_test_used = np.hstack([X_test_used, np.ones((N, 1))])
             # Use the trained weights to predict labels for test data points
             y_pred = np.argmax(np.dot(X_test_used, self.w.T), axis=1)

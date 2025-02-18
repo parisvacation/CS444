@@ -18,6 +18,7 @@ class SVM:
         self.epochs = epochs
         self.reg_const = reg_const
         self.n_class = n_class
+        self.train_mean = None
 
     def calc_gradient(self, X_train: np.ndarray, y_train: np.ndarray) -> np.ndarray:
         """Calculate gradient of the svm hinge loss.
@@ -96,7 +97,8 @@ class SVM:
         # Binary classification
         if self.n_class == 2:
             # Mean-centering
-            X_train_used = X_train - np.mean(X_train)
+            self.train_mean = np.mean(X_train, axis=0)
+            X_train_used = X_train - self.train_mean
             # Add bias term
             X_train_used = np.hstack([X_train_used, np.ones((N, 1))])
             y_train_used = y_train
@@ -120,7 +122,7 @@ class SVM:
         
         # Multi-class classification
         else:
-            # Add bias term
+            # Add bias term (Fashion-mnist has been mean-centered)
             X_train_used = np.hstack([X_train, np.ones((N, 1))])
             y_train_used = y_train
 
@@ -161,7 +163,7 @@ class SVM:
         # Binary classification
         if self.n_class == 2:
             # Mean-centering
-            X_test_used = X_test - np.mean(X_test)
+            X_test_used = X_test - self.train_mean
             # Add bias term
             X_test_used = np.hstack([X_test_used, np.ones((N, 1))])
             y_pred = np.where(np.dot(X_test_used, self.w) >= 0, 1, 0)
