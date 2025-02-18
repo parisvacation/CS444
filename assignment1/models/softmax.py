@@ -63,8 +63,8 @@ class Softmax:
         X_batch = X_train
         y_batch = y_train
 
-        # First, calculate the gradient of regularization term
-        grad_w += self.reg_const * self.w
+        # First, calculate the gradient of regularization term(without bias)
+        grad_w[:, :-1] += self.reg_const * self.w[:, :-1]
 
         # Second, calculate the gradient of the data loss
         scores = self.softmax(np.dot(X_batch, self.w.T))

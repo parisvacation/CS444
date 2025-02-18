@@ -35,7 +35,7 @@ class Perceptron:
         # TODO: implement me
         N, D = X_train.shape
         # L2 Regularization weight
-        lambda_reg = 0.01
+        lambda_reg = 0.005
         # Margin used for multi-class classification, but does it become specific SVM model? 
         margin = 5.0
 
@@ -90,8 +90,8 @@ class Perceptron:
                 for i in range(N):
                     # Use perceptron update rule for multi-class classification
                     scores = np.dot(self.w, X_train_new[i])
-                    # L2 Regularization
-                    self.w *= (1 - self.lr * lambda_reg / N)
+                    # L2 Regularization without bias term
+                    self.w[:, 0:D] *= (1 - self.lr * lambda_reg / N)
                     # Update w if wrong class score is higher than the correct class score
                     for k in range(self.n_class):
                         if k != y_train_new[i] and scores[k] > scores[y_train_new[i]] - margin:

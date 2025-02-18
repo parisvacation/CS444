@@ -48,8 +48,8 @@ class SVM:
             X_batch = X_train
             y_batch = np.where(y_train == 0, -1, 1)
 
-            # First, calculate the gradient of regularization term
-            grad_w += self.reg_const * self.w
+            # First, calculate the gradient of regularization term(without bias)
+            grad_w[:-1] += self.reg_const * self.w[:-1]
 
             # Second, calculate the gradient of data loss
             for i in range(N):
@@ -62,8 +62,8 @@ class SVM:
             X_batch = X_train
             y_batch = y_train
 
-            # First, calculate the gradient of regularization term
-            grad_w += self.reg_const * self.w
+            # First, calculate the gradient of regularization term(without bias)
+            grad_w[:, :-1] += self.reg_const * self.w[:, :-1]
 
             # Second, calculate the gradient of data loss
             for i in range(N):
