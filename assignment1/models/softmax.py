@@ -91,7 +91,7 @@ class Softmax:
         batch_size = min(4096, N)
 
         # Preprocess the data
-        # Standardlize and add bias term
+        # Standardize and add bias term
         X_train_used = (X_train - np.mean(X_train, axis=0)) / np.std(X_train, axis=0)
         X_train_used = np.hstack((X_train_used, np.ones((N, 1))))
         y_train_used = y_train
@@ -130,7 +130,7 @@ class Softmax:
         # TODO: implement me
         N = X_test.shape[0]
         
-        # Standardlize and add bias term
+        # Standardize and add bias term
         X_test_used = (X_test - np.mean(X_test, axis=0)) / np.std(X_test, axis=0)
         X_test_used = np.hstack([X_test_used, np.ones((N, 1))])
 

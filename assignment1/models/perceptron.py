@@ -32,8 +32,8 @@ class Perceptron:
         """
         # TODO: implement me
         N, D = X_train.shape
-        # L2 Regularization weight
-        lambda_reg = 0.005
+        # L2 Regularization weight(without margin, the optimal value is 0.005)
+        lambda_reg = 0.05
         # Margin used for multi-class classification, but does it become specific SVM model? 
         margin = 5.0
 
@@ -124,7 +124,7 @@ class Perceptron:
         
         # Multi-class classification
         else:
-            # Standardlize and add bias term
+            # Standardize and add bias term
             X_test_used = (X_test - np.mean(X_test, axis=0)) / np.std(X_test, axis=0)
             X_test_used = np.hstack([X_test_used, np.ones((N, 1))])
             # Use the trained weights to predict labels for test data points
