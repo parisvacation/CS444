@@ -37,7 +37,7 @@ class Perceptron:
         # L2 Regularization weight
         lambda_reg = 0.005
         # Margin used for multi-class classification, but does it become specific SVM model? 
-        margin = 0.1
+        margin = 0.05
 
         # Binary Classification
         if self.n_class == 2:
