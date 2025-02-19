@@ -15,6 +15,8 @@ class Logistic:
         self.lr = lr
         self.epochs = epochs
         self.threshold = threshold
+        self.train_mean = None
+        self.train_std = None
 
     def sigmoid(self, z: np.ndarray) -> np.ndarray:
         """Sigmoid function.
@@ -48,6 +50,11 @@ class Logistic:
             y_train: a numpy array of shape (N,) containing training labels
         """
         # TODO: implement me
+        # Preprocess the data
+        self.train_mean = np.mean(X_train,axis=0)
+        self.train_std = np.std(X_train,axis=0)
+        X_train = (X_train-self.train_mean) / self.train_std
+
         self.w=0.0004*np.random.uniform(-25,25,size=(np.shape(X_train)[1],))
 
         turn_counter=0
@@ -80,6 +87,8 @@ class Logistic:
                 class.
         """
         # TODO: implement me
+        # Preprocess the data
+        X_test = (X_test-self.train_mean) / self.train_std
 
         counting=0
         predi_result=np.full(np.shape(X_test)[0],53)
