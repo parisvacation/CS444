@@ -77,7 +77,7 @@ class Perceptron:
 
             # Second, initialize w
             if self.w is None:
-                np.random.seed(100)
+                np.random.seed(42)
                 self.w = np.random.uniform(-1, 1, size=(self.n_class, D + 1)) * 0.01 # the shape is (n_class, D + 1)
 
             # Third, train the model
