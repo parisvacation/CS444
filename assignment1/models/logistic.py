@@ -57,7 +57,7 @@ class Logistic:
             train_value=X_train@self.w
             train_log=self.sigmoid(train_value)
 
-            decay_it=0.99*decay_it
+            decay_it=1*decay_it
             turn_counter=1+turn_counter
 
             diff=(train_log-y_train)
