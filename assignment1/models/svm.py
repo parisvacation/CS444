@@ -65,16 +65,16 @@ class SVM:
             # First, calculate the gradient of regularization term(without bias)
             grad_w[:, :-1] += self.reg_const * self.w[:, :-1]
 
-            # Second, calculate the gradient of data loss            
+            # Second, calculate the gradient of data loss
             scores = X_batch @ self.w.T # shape is (N, C)
             correct_scores = scores[np.arange(N), y_batch] # shape is (N,)
 
-            margin = correct_scores[:, np.newaxis] - scores # shape is (N, C)
+            margin = correct_scores.reshape((-1, 1)) - scores # shape is (N, C)
             margin_mask = margin < 1
             margin_mask[np.arange(N), y_batch] = False
             sum_mask = np.sum(margin_mask, axis=1) # shape is (N,)
 
-            np.add.at(grad_w, y_batch, -(sum_mask[:, np.newaxis] * X_batch) / N)
+            np.add.at(grad_w, y_batch, -(sum_mask.reshape((-1, 1)) * X_batch) / N)
             grad_w += (margin_mask.T @ X_batch) / N
 
         return grad_w
