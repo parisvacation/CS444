@@ -55,6 +55,8 @@ class NeuralNetwork:
             self.params["b" + str(i)] = np.zeros(sizes[i])
             
             # TODO: (Extra Credit) You may set parameters for Adam optimizer here
+            if self.opt == "Adam":
+                pass
 
     def linear(self, W: np.ndarray, X: np.ndarray, b: np.ndarray) -> np.ndarray:
         """Fully connected (linear) layer.
@@ -121,8 +123,14 @@ class NeuralNetwork:
 
     def mse(self, y: np.ndarray, p: np.ndarray) -> np.ndarray:
         # TODO implement this
-        return np.mean((y - p) ** 2, axis=0)
+        # Calculate the total loss
+        mse = np.mean((y - p) ** 2, axis=0)
+        return np.sum(mse)
     
+    def mse_separate(self, y: np.ndarray, p: np.ndarray) -> np.ndarray:
+        # Calculate the loss for each output features
+        return np.mean((y - p) ** 2, axis=0)
+     
     def mse_grad(self, y: np.ndarray, p: np.ndarray) -> np.ndarray:
         # TODO implement this
         # The gradient of total loss with respect to p
@@ -185,8 +193,8 @@ class NeuralNetwork:
         # self.relu_grad, and self.softmax_grad if it helps organize your code.
 
         # Calculate the MSE loss
-        loss = np.sum(self.mse(y, self.outputs["h" + str(self.num_layers)]))
-        MSE_loss = float(loss)
+        MSE_loss = self.mse(y, self.outputs["h" + str(self.num_layers)])
+        MSE_loss = float(MSE_loss)
         # print(y.shape)
         
         # Calculate the gradient of the MSE loss with respect to the final output
