@@ -123,22 +123,21 @@ class NeuralNetwork:
 
     def mse(self, y: np.ndarray, p: np.ndarray) -> np.ndarray:
         # TODO implement this
-        # Calculate the total loss
-        mse = np.mean((y - p) ** 2, axis=0)
-        return np.sum(mse)
+        # Calculate the total loss (divided by y.shape[0]*y.shape[1])
+        return np.mean((y - p) ** 2)
     
     def mse_separate(self, y: np.ndarray, p: np.ndarray) -> np.ndarray:
-        # Calculate the loss for each output features
+        # Calculate the loss for each output features (divided by y.shape[0])
         return np.mean((y - p) ** 2, axis=0)
      
     def mse_grad(self, y: np.ndarray, p: np.ndarray) -> np.ndarray:
         # TODO implement this
         # The gradient of total loss with respect to p
-        N = y.shape[0]
-        return -2 * (y - p) / N
+        N, D = y.shape
+        return -2 * (y - p) / (N * D)
     
     def mse_sigmoid_grad(self, y: np.ndarray, p: np.ndarray) -> np.ndarray:
-        # TODO implement this                    
+        # TODO implement this
         return self.mse_grad(y, self.sigmoid(p)) * self.sigmoid_grad(p)
 
     def forward(self, X: np.ndarray) -> np.ndarray:
