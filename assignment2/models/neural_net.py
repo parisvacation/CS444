@@ -87,10 +87,13 @@ class NeuralNetwork:
         # TODO: implement me
         # The shape of de_dz is (N, C)
         N = de_dz.shape[0]
-        # Calculate the gradients of loss with respect to W, b, and X
-        de_dw = np.dot(X.T, de_dz)
-        de_db = np.dot(np.ones(N).reshape(1, -1), de_dz)
-        de_dx = np.dot(de_dz, W.T)
+
+        # Calculate the gradient of total loss with respect to W, b, and X
+        de_dw = np.dot(X.T, de_dz) # shape is (D, C)
+        # de_db will be the summation of de_dz along the first dimension
+        # de_db = np.dot(np.ones(N), de_dz)
+        de_db = np.sum(de_dz, axis=0) # shape is (C,)
+        de_dx = np.dot(de_dz, W.T) # shape is (N, D)
         return de_dw, de_db, de_dx
 
     def relu(self, X: np.ndarray) -> np.ndarray:
@@ -123,6 +126,8 @@ class NeuralNetwork:
 
     def mse(self, y: np.ndarray, p: np.ndarray) -> np.ndarray:
         # TODO implement this
+        # Assume y is the training value targets(ground truths)
+        # Assume p is the training value outputs(predicted values)
         # Calculate the total loss (divided by y.shape[0]*y.shape[1])
         return np.mean((y - p) ** 2)
     
@@ -132,13 +137,17 @@ class NeuralNetwork:
      
     def mse_grad(self, y: np.ndarray, p: np.ndarray) -> np.ndarray:
         # TODO implement this
-        # The gradient of total loss with respect to p
+        # Calculate the gradient of total loss with respect to output p
         N, D = y.shape
         return -2 * (y - p) / (N * D)
     
     def mse_sigmoid_grad(self, y: np.ndarray, p: np.ndarray) -> np.ndarray:
         # TODO implement this
-        return self.mse_grad(y, self.sigmoid(p)) * self.sigmoid_grad(p)
+        # Calculate the gradient of total loss with respect to input x
+        mse_grad_p = self.mse_grad(y, p)
+        # According the sigmoid function value, calculate the gradient of sigmoid function
+        mse_grad_x = mse_grad_p * (p * (1 - p))
+        return mse_grad_x
 
     def forward(self, X: np.ndarray) -> np.ndarray:
         """Compute the outputs for all of the data samples.
@@ -155,9 +164,10 @@ class NeuralNetwork:
         # the same keys as self.params. You can use functions like
         # self.linear, self.relu, and self.mse in here.
 
-        # Store the input at first
+        # Store the input to do back-propagation later
         # print(X.shape)
-        self.outputs["x"] = X
+        self.inputs = {}
+        self.inputs["x"] = X
 
         # Store the output of each layer
         for idx in range(1, self.num_layers + 1):
@@ -165,17 +175,18 @@ class NeuralNetwork:
             if idx == 1:
                 self.outputs["z" + str(idx)] = self.linear(self.params["W" + str(idx)], X, self.params["b" + str(idx)])
             else:
-                self.outputs["z" + str(idx)] = self.linear(self.params["W" + str(idx)], self.outputs["h" + str(idx - 1)], self.params["b" + str(idx)])
+                self.outputs["z" + str(idx)] = self.linear(self.params["W" + str(idx)], self.outputs["g" + str(idx - 1)], self.params["b" + str(idx)])
 
             # Activation function
             if idx != self.num_layers:
-                self.outputs["h" + str(idx)] = self.relu(self.outputs["z" + str(idx)])
+                self.outputs["g" + str(idx)] = self.relu(self.outputs["z" + str(idx)])
             else:
-                self.outputs["h" + str(idx)] = self.sigmoid(self.outputs["z" + str(idx)])
+                self.outputs["g" + str(idx)] = self.sigmoid(self.outputs["z" + str(idx)])
 
         # (Extra Credit) Adam optimizer here
 
-        return self.outputs["h" + str(self.num_layers)]
+        # g[self.num_layers] = p.
+        return self.outputs["g" + str(self.num_layers)] 
 
     def backward(self, y: np.ndarray) -> float:
         """Perform back-propagation and compute the gradients and losses.
@@ -192,43 +203,43 @@ class NeuralNetwork:
         # self.relu_grad, and self.softmax_grad if it helps organize your code.
 
         # Calculate the MSE loss
-        MSE_loss = self.mse(y, self.outputs["h" + str(self.num_layers)])
+        MSE_loss = self.mse(y, self.outputs["g" + str(self.num_layers)])
         MSE_loss = float(MSE_loss)
         # print(y.shape)
         
         # Calculate the gradient of the MSE loss with respect to the final output
-        self.gradients["de_dh" + str(self.num_layers)] = self.mse_grad(y, self.outputs["h" + str(self.num_layers)])
+        self.gradients["de_dg" + str(self.num_layers)] = self.mse_grad(y, self.outputs["g" + str(self.num_layers)])
 
         for idx in range(self.num_layers, 0, -1):
             # Calculate the gradient of the MSE loss with respect to the last z, use element-wise multiplication
             if idx == self.num_layers:
-                self.gradients["de_dz" + str(idx)] = self.gradients["de_dh" + str(idx)] * self.sigmoid_grad(self.outputs["z" + str(idx)])
+                self.gradients["de_dz" + str(idx)] = self.gradients["de_dg" + str(idx)] * self.sigmoid_grad(self.outputs["z" + str(idx)])
             # Calculate the gradient of the MSE loss with respect to the other z, use element-wise multiplication
             else:
-                self.gradients["de_dz" + str(idx)] = self.gradients["de_dh" + str(idx)] * self.relu_grad(self.outputs["z" + str(idx)])
+                self.gradients["de_dz" + str(idx)] = self.gradients["de_dg" + str(idx)] * self.relu_grad(self.outputs["z" + str(idx)])
             
-            # Calculate de_dw, de_db, de_dx/de_dh
+            # Calculate de_dw, de_db, de_dx/de_dg
             if idx == 1:
                 de_dw, de_db, de_dx = self.linear_grad(
                     self.params["W" + str(idx)],
-                    self.outputs["x"],
+                    self.inputs["x"],
                     self.gradients["de_dz" + str(idx)]
                 )
                 self.gradients["x"] = de_dx
                 self.gradients["W" + str(idx)] = de_dw
                 # Turn de_db from 2D array to 1D array
-                self.gradients["b" + str(idx)] = de_db.reshape(-1)
+                self.gradients["b" + str(idx)] = de_db
             
             else:
                 de_dw, de_db, de_dx = self.linear_grad(
                     self.params["W" + str(idx)],
-                    self.outputs["h" + str(idx - 1)],
+                    self.outputs["g" + str(idx - 1)],
                     self.gradients["de_dz" + str(idx)]
                 )
-                self.gradients["de_dh" + str(idx - 1)] = de_dx
+                self.gradients["de_dg" + str(idx - 1)] = de_dx
                 self.gradients["W" + str(idx)] = de_dw
                 # Turn de_db from 2D array to 1D array
-                self.gradients["b" + str(idx)] = de_db.reshape(-1)
+                self.gradients["b" + str(idx)] = de_db
          
         return MSE_loss
 
