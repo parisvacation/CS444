@@ -54,9 +54,19 @@ class NeuralNetwork:
             self.params["W" + str(i)] = np.random.randn(sizes[i - 1], sizes[i]) / np.sqrt(sizes[i - 1])
             self.params["b" + str(i)] = np.zeros(sizes[i])
             
-            # TODO: (Extra Credit) You may set parameters for Adam optimizer here
-            if self.opt == "Adam":
-                pass
+        # TODO: (Extra Credit) You may set parameters for Adam optimizer here
+        if self.opt == "Adam":
+            # Initialize the first and second moment
+            self.m = {}
+            self.v = {}
+            for i in range(1, num_layers + 1):
+                self.m["W" + str(i)] = np.zeros_like(self.params["W" + str(i)])
+                self.v["W" + str(i)] = np.zeros_like(self.params["W" + str(i)])
+                self.m["b" + str(i)] = np.zeros_like(self.params["b" + str(i)])
+                self.v["b" + str(i)] = np.zeros_like(self.params["b" + str(i)])
+            # Initialize the time step
+            self.t = 0
+
 
     def linear(self, W: np.ndarray, X: np.ndarray, b: np.ndarray) -> np.ndarray:
         """Fully connected (linear) layer.
@@ -185,7 +195,7 @@ class NeuralNetwork:
 
         # (Extra Credit) Adam optimizer here
 
-        # g[self.num_layers] = p.
+        # g[self.num_layers] is the final ouput.
         return self.outputs["g" + str(self.num_layers)] 
 
     def backward(self, y: np.ndarray) -> float:
@@ -266,7 +276,27 @@ class NeuralNetwork:
 
         elif self.opt == 'Adam':
             # TODO: (Extra credit) implement Adam optimizer here
-            pass
+            # Increment the time step
+            self.t += 1
+
+            for idx in range(1, self.num_layers + 1):
+                # Calculate the first moment for weight parameters
+                self.m["W" + str(idx)] = b1 * self.m["W" + str(idx)] + (1 - b1) * self.gradients["W" + str(idx)]
+                # Calculate the first moment for bias parameters
+                self.m["b" + str(idx)] = b1 * self.m["b" + str(idx)] + (1 - b1) * self.gradients["b" + str(idx)]
+                # Calculate the second moment for weight parameters
+                self.v["W" + str(idx)] = b2 * self.v["W" + str(idx)] + (1 - b2) * np.square(self.gradients["W" + str(idx)])
+                # Calculate the second moment for bias parameters
+                self.v["b" + str(idx)] = b2 * self.v["b" + str(idx)] + (1 - b2) * np.square(self.gradients["b" + str(idx)])
+
+                # Update the parameters using the Adam update rule
+                m_w_hat = self.m["W" + str(idx)] / (1 - b1 ** self.t)
+                v_w_hat = self.v["W" + str(idx)] / (1 - b2 ** self.t)
+                m_b_hat = self.m["b" + str(idx)] / (1 - b1 ** self.t)
+                v_b_hat = self.v["b" + str(idx)] / (1 - b2 ** self.t)
+                self.params["W" + str(idx)] -= lr * m_w_hat / (np.sqrt(v_w_hat) + eps)
+                self.params["b" + str(idx)] -= lr * m_b_hat / (np.sqrt(v_b_hat) + eps)
+                
         else:
             raise NotImplementedError
         
