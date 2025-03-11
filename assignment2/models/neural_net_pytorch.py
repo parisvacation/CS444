@@ -30,6 +30,8 @@ class NeuralNet(nn.Module):
         for i in range(num_layers):
             model.add_module(f"fc{i+1}", nn.Linear(sizes[i], sizes[i+1]))
             if i != num_layers - 1:
+                # Add batch normalization between Linear layer and ReLU activation
+                model.add_module(f"bn{i+1}", nn.BatchNorm1d(sizes[i+1]))
                 model.add_module(f"relu{i+1}", nn.ReLU())
             else:
                 model.add_module("sigmoid", nn.Sigmoid())
