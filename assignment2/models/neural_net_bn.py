@@ -5,7 +5,7 @@ from typing import Sequence
 import numpy as np
 
 
-class NeuralNetwork:
+class BNNeuralNetwork:
     """A multi-layer fully-connected neural network. The net has an input
     dimension of N, a hidden layer dimension of H, and output dimension C. 
     We train the network with a MLE loss function. The network uses a ReLU

@@ -9,7 +9,7 @@ class NeuralNet(nn.Module):
     The outputs of the last fully-connected layer are passed through
     a sigmoid. 
     """
-    def __init__(self, input_size, hidden_sizes, output_size, num_layers, lr):
+    def __init__(self, input_size, hidden_sizes, output_size, num_layers, use_bn, lr):
         """ Initialize the model.
         """
         # Initialize the class
@@ -30,8 +30,9 @@ class NeuralNet(nn.Module):
         for i in range(num_layers):
             model.add_module(f"fc{i+1}", nn.Linear(sizes[i], sizes[i+1]))
             if i != num_layers - 1:
-                # Add batch normalization between Linear layer and ReLU activation
-                model.add_module(f"bn{i+1}", nn.BatchNorm1d(sizes[i+1]))
+                if use_bn == True:
+                    # Add batch normalization between Linear layer and ReLU activation
+                    model.add_module(f"bn{i+1}", nn.BatchNorm1d(sizes[i+1]))
                 model.add_module(f"relu{i+1}", nn.ReLU())
             else:
                 model.add_module("sigmoid", nn.Sigmoid())
