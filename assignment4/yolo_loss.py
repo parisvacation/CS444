@@ -37,6 +37,31 @@ def compute_iou(box1, box2):
     iou = inter / (area1 + area2 - inter)
     return iou
 
+def compute_pairwise_iou(box1, box2):
+    """Compute the intersection over union of two set of boxes, each box is [x1,y1,x2,y2].
+    Args:
+      box1: (tensor) bounding boxes, sized [N,4].
+      box2: (tensor) bounding boxes, sized [N,4].
+    Return:
+      (tensor) iou, sized [N,].
+    """
+    assert box1.shape == box2.shape
+
+    x1 = torch.max(box1[:,0], box2[:,0])
+    y1 = torch.max(box1[:,1], box2[:,1])
+    x2 = torch.min(box1[:,2], box2[:,2])
+    y2 = torch.min(box1[:,3], box2[:,3])
+
+    inter_w = (x2 - x1).clamp(min=0)
+    inter_h = (y2 - y1).clamp(min=0)
+    inter = inter_w * inter_h
+
+    area1 = (box1[:,2]-box1[:,0]) * (box1[:,3]-box1[:,1])
+    area2 = (box2[:,2]-box2[:,0]) * (box2[:,3]-box2[:,1])
+
+    iou = inter / (area1 + area2 - inter)
+    return iou
+
 
 class YoloLoss(nn.Module):
 
@@ -61,6 +86,21 @@ class YoloLoss(nn.Module):
         """
         ### CODE ###
         # Your code here
+        # Get x, y, w, h
+        # Note: x and y contains information about the index of the box; 
+        # Suppose the cell is at index (i,j), then x = x_in_cell + i, y = y_in_cell + j
+        x = boxes[:, 0]
+        y = boxes[:, 1]
+        w = boxes[:, 2]
+        h = boxes[:, 3]
+
+        # Calculate x1, y1, x2, y2
+        x1 = x/self.S - 0.5*w
+        y1 = y/self.S - 0.5*h
+        x2 = x/self.S + 0.5*w
+        y2 = y/self.S + 0.5*h
+
+        boxes = torch.stack((x1, y1, x2, y2), dim=1)
 
         return boxes
 
@@ -84,6 +124,32 @@ class YoloLoss(nn.Module):
 
         ### CODE ###
         # Your code here
+        # Get the number of cells and the number of bounding boxes of each cell(self.B)
+        num_cells = box_target.shape[0]
+        num_bboxes = len(pred_box_list)
+
+        # Initialize IoU list
+        iou_list = torch.zeros(num_cells, num_bboxes, device=box_target.device)
+
+        # Use xywh2xyxy to convert bbox format
+        box_target_converted = self.xywh2xyxy(box_target)
+
+        for box_idx in range(num_bboxes):
+            # Use xywh2xyxy to convert bbox format
+            box_pred_converted = self.xywh2xyxy(pred_box_list[box_idx][:, 0:4])
+            # We only want to compute IoU of target bboxes and prediction bboxes for the same cell
+            iou_list[:, box_idx] = compute_pairwise_iou(box_pred_converted, box_target_converted)
+
+        # Get the best IoU for each cell, shape of best_ious and best_bbox_idx is (num_cells,)
+        best_ious, best_bbox_idx = torch.max(iou_list, dim=1)
+
+        # Turn the list of tensors into a tensor of shape (N, B, 5)
+        pred_box_tensor = torch.stack(pred_box_list, dim=1)
+
+        # Get the best boxes for each cell
+        arange = torch.arange(num_cells, device=pred_box_tensor.device)
+        best_boxes = pred_box_tensor[arange, best_bbox_idx]
+
         return best_ious, best_boxes
 
     def get_class_prediction_loss(self, classes_pred, classes_target, has_object_map):
@@ -98,6 +164,13 @@ class YoloLoss(nn.Module):
         """
         ### CODE ###
         # Your code here
+        # Only compute loss for cell which contains object
+        has_object_map = has_object_map.unsqueeze(-1)
+        classes_pred_real = classes_pred * has_object_map
+        classes_target_real = classes_target * has_object_map
+
+        # Compute the loss (Note: the loss is the sum, not mean)
+        loss = torch.sum((classes_pred_real - classes_target_real) ** 2)
         return loss
 
     def get_no_object_loss(self, pred_boxes_list, has_object_map):
@@ -116,6 +189,18 @@ class YoloLoss(nn.Module):
         """
         ### CODE
         # your code here
+        # Get no-object mapping for every grid
+        has_noobject_map = 1.0 - has_object_map.float()
+
+        # Initialize loss with bounding boxes summed together
+        loss_boxes = torch.zeros_like(has_object_map, dtype=torch.float32)
+        for pred_boxes in pred_boxes_list:
+            pred_boxes_conf = pred_boxes[:,:,:,-1]
+            loss_boxes += pred_boxes_conf * has_noobject_map
+        
+        # Calculate the loss with grids summed together
+        loss = self.l_noobj * torch.sum(loss_boxes)
+
         return loss
 
     def get_contain_conf_loss(self, box_pred_conf, box_target_conf):
@@ -133,6 +218,7 @@ class YoloLoss(nn.Module):
         """
         ### CODE
         # your code here
+        loss = torch.sum((box_pred_conf - box_target_conf) ** 2)
         return loss
 
     def get_regression_loss(self, box_pred_response, box_target_response):
@@ -149,6 +235,16 @@ class YoloLoss(nn.Module):
         """
         ### CODE
         # your code here
+        reg_loss = 0
+
+        # Compute the regression loss due to the coordinates
+        reg_loss += torch.sum((box_pred_response[:,0] - box_target_response[:,0]) ** 2)
+        reg_loss += torch.sum((box_pred_response[:,1] - box_target_response[:,1]) ** 2)
+        # Compute the regression loss due to the width and height
+        reg_loss += torch.sum((box_pred_response[:,2]**(0.5) - box_target_response[:,2]**(0.5)) ** 2)
+        reg_loss += torch.sum((box_pred_response[:,3]**(0.5) - box_target_response[:,3]**(0.5)) ** 2)
+
+        reg_loss *= self.l_coord
         return reg_loss
 
     def forward(self, pred_tensor, target_boxes, target_cls, has_object_map):
@@ -173,29 +269,48 @@ class YoloLoss(nn.Module):
         # split the pred tensor from an entity to separate tensors:
         # -- pred_boxes_list: a list containing all bbox prediction (list) [(tensor) size (N, S, S, 5)  for B pred_boxes]
         # -- pred_cls (containing all classification prediction)
+        pred_boxes_list = []
+        for i in range(self.B):
+            pred_boxes_list.append(pred_tensor[..., i * 5:(i + 1) * 5])
+        pred_cls = pred_tensor[..., 5 * self.B:]
 
         # compcute classification loss
+        cls_loss = self.get_class_prediction_loss(pred_cls, target_cls, has_object_map) / N
 
         # compute no-object loss
+        no_obj_loss = self.get_no_object_loss(pred_boxes_list, has_object_map) / N
 
         # Re-shape boxes in pred_boxes_list and target_boxes to meet the following desires
         # 1) only keep having-object cells
         # 2) vectorize all dimensions except for the last one for faster computation
+        target_boxes_obj = target_boxes[has_object_map].reshape(-1, 4)
+        pre_boxes_obj_list = []
+        # length of pred_boxes_list is self.B
+        for box_idx in range(len(pred_boxes_list)):
+            pre_boxes_obj_list.append(pred_boxes_list[box_idx][has_object_map].reshape(-1, 5))
 
         # find the best boxes among the 2 (or self.B) predicted boxes and the corresponding iou
+        best_ious, best_boxes = self.find_best_iou_boxes(pre_boxes_obj_list, target_boxes_obj)
+        # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        # best_ious = best_ious.to(device)
+        # best_boxes = best_boxes.to(device)
 
         # compute regression loss between the found best bbox and GT bbox for all the cell containing objects
+        reg_loss = self.get_regression_loss(best_boxes[:, 0:4], target_boxes_obj) / N
 
         # compute contain_object_loss
+        # The confidence score of ground truth is the IoU of the ground truth bbox and the predicted bbox
+        containing_obj_loss = self.get_contain_conf_loss(best_boxes[:, -1], best_ious) / N
 
         # compute final loss
+        total_loss = cls_loss + no_obj_loss + reg_loss + containing_obj_loss
 
         # construct return loss_dict
         loss_dict = dict(
-            total_loss=...,
-            reg_loss=...,
-            containing_obj_loss=...,
-            no_obj_loss=...,
-            cls_loss=...,
+            total_loss=total_loss,
+            reg_loss=reg_loss,
+            containing_obj_loss=containing_obj_loss,
+            no_obj_loss=no_obj_loss,
+            cls_loss=cls_loss,
         )
         return loss_dict
