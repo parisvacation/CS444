@@ -217,8 +217,23 @@ def resnet50(pretrained=False, **kwargs):
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
+    # The number of blocks in each layer of resnet50 is: [3, 4, 6, 3]
     model = ResNet(Bottleneck, [3, 4, 6, 3], **kwargs)
     if pretrained:
         pretrained_model = models.resnet50(weights='IMAGENET1K_V2')
+        model = update_state_dict(pretrained_model, model)
+    return model
+
+
+def resnet101(pretrained=False, **kwargs):
+    """Constructs a ResNet-101 model.
+
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+    """
+    # The number of blocks in each layer of resnet101 is: [3, 4, 23, 3]
+    model = ResNet(Bottleneck, [3, 4, 23, 3], **kwargs)
+    if pretrained:
+        pretrained_model = models.resnet101(weights='IMAGENET1K_V2')
         model = update_state_dict(pretrained_model, model)
     return model
