@@ -37,31 +37,6 @@ def compute_iou(box1, box2):
     iou = inter / (area1 + area2 - inter)
     return iou
 
-def compute_pairwise_iou(box1, box2):
-    """Compute the intersection over union of two set of boxes, each box is [x1,y1,x2,y2].
-    Args:
-      box1: (tensor) bounding boxes, sized [N,4].
-      box2: (tensor) bounding boxes, sized [N,4].
-    Return:
-      (tensor) iou, sized [N,].
-    """
-    assert box1.shape == box2.shape
-
-    x1 = torch.max(box1[:,0], box2[:,0])
-    y1 = torch.max(box1[:,1], box2[:,1])
-    x2 = torch.min(box1[:,2], box2[:,2])
-    y2 = torch.min(box1[:,3], box2[:,3])
-
-    inter_w = (x2 - x1).clamp(min=0)
-    inter_h = (y2 - y1).clamp(min=0)
-    inter = inter_w * inter_h
-
-    area1 = (box1[:,2]-box1[:,0]) * (box1[:,3]-box1[:,1])
-    area2 = (box2[:,2]-box2[:,0]) * (box2[:,3]-box2[:,1])
-
-    iou = inter / (area1 + area2 - inter)
-    return iou
-
 
 class YoloLoss(nn.Module):
 
@@ -128,7 +103,7 @@ class YoloLoss(nn.Module):
         num_cells = box_target.shape[0]
         num_bboxes = len(pred_box_list)
 
-        # Initialize IoU list
+        # Initialize IoU list, the shape is (num_cells, num_bboxes)
         iou_list = torch.zeros(num_cells, num_bboxes, device=box_target.device)
 
         # Use xywh2xyxy to convert bbox format
@@ -138,7 +113,8 @@ class YoloLoss(nn.Module):
             # Use xywh2xyxy to convert bbox format
             box_pred_converted = self.xywh2xyxy(pred_box_list[box_idx][:, 0:4])
             # We only want to compute IoU of target bboxes and prediction bboxes for the same cell
-            iou_list[:, box_idx] = compute_pairwise_iou(box_pred_converted, box_target_converted)
+            # But the result from compute_iou is a 2D tensor of shape (num_cells, num_cells)
+            iou_list[:, box_idx] = torch.diagonal(compute_iou(box_pred_converted, box_target_converted))
 
         # Get the best IoU for each cell, shape of best_ious and best_bbox_idx is (num_cells,)
         best_ious, best_bbox_idx = torch.max(iou_list, dim=1)
@@ -165,12 +141,8 @@ class YoloLoss(nn.Module):
         ### CODE ###
         # Your code here
         # Only compute loss for cell which contains object
-        has_object_map = has_object_map.unsqueeze(-1)
-        classes_pred_real = classes_pred * has_object_map
-        classes_target_real = classes_target * has_object_map
-
         # Compute the loss (Note: the loss is the sum, not mean)
-        loss = torch.sum((classes_pred_real - classes_target_real) ** 2)
+        loss = F.mse_loss(classes_pred[has_object_map], classes_target[has_object_map], reduction="sum")
         return loss
 
     def get_no_object_loss(self, pred_boxes_list, has_object_map):
@@ -196,7 +168,7 @@ class YoloLoss(nn.Module):
         loss_boxes = torch.zeros_like(has_object_map, dtype=torch.float32)
         for pred_boxes in pred_boxes_list:
             pred_boxes_conf = pred_boxes[:,:,:,-1]
-            loss_boxes += pred_boxes_conf * has_noobject_map
+            loss_boxes += has_noobject_map * (pred_boxes_conf ** 2)
         
         # Calculate the loss with grids summed together
         loss = self.l_noobj * torch.sum(loss_boxes)
@@ -218,7 +190,7 @@ class YoloLoss(nn.Module):
         """
         ### CODE
         # your code here
-        loss = torch.sum((box_pred_conf - box_target_conf) ** 2)
+        loss = F.mse_loss(box_pred_conf, box_target_conf.detach(), reduction="sum")
         return loss
 
     def get_regression_loss(self, box_pred_response, box_target_response):
@@ -235,16 +207,12 @@ class YoloLoss(nn.Module):
         """
         ### CODE
         # your code here
-        reg_loss = 0
-
         # Compute the regression loss due to the coordinates
-        reg_loss += torch.sum((box_pred_response[:,0] - box_target_response[:,0]) ** 2)
-        reg_loss += torch.sum((box_pred_response[:,1] - box_target_response[:,1]) ** 2)
+        xy_loss = torch.sum((box_pred_response[:, 0:2] - box_target_response[:, 0:2]) ** 2)
         # Compute the regression loss due to the width and height
-        reg_loss += torch.sum((box_pred_response[:,2]**(0.5) - box_target_response[:,2]**(0.5)) ** 2)
-        reg_loss += torch.sum((box_pred_response[:,3]**(0.5) - box_target_response[:,3]**(0.5)) ** 2)
+        wh_loss = torch.sum((box_pred_response[:, 2:4]**(0.5) - box_target_response[:, 2:4]**(0.5)) ** 2)
 
-        reg_loss *= self.l_coord
+        reg_loss = (xy_loss + wh_loss) * self.l_coord
         return reg_loss
 
     def forward(self, pred_tensor, target_boxes, target_cls, has_object_map):
