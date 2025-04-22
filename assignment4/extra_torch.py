@@ -142,10 +142,17 @@ class YoloLoss(nn.Module):
         # Your code here
         # Only compute loss for cell which contains object
         # Compute the loss (Note: the loss is the sum, not mean)
-        eps = 0.1
-        smoothed = classes_target[has_object_map] * (1 - eps) + eps/classes_pred.size(-1)
-        logp = F.log_softmax(classes_pred[has_object_map], dim=-1)
-        loss = -(smoothed * logp).sum()
+        pred = classes_pred[has_object_map]
+        tgt = classes_target[has_object_map] 
+
+        target_idx = torch.argmax(tgt, dim=-1)
+
+        loss = F.cross_entropy(
+            pred,
+            target_idx,
+            reduction='sum',
+            label_smoothing=0.1
+        )
         return loss
 
     def get_no_object_loss(self, pred_boxes_list, has_object_map):
@@ -165,13 +172,14 @@ class YoloLoss(nn.Module):
         ### CODE
         # your code here
         # Get no-object mapping for every grid
-        has_noobj = ~has_object_map
+        noobj_mask = ~has_object_map
         loss = 0.0
         for pb in pred_boxes_list:
-            conf = pb[..., -1]
+            conf_logits = pb[..., -1][noobj_mask]
+            zeros = torch.zeros_like(conf_logits)
             loss += F.binary_cross_entropy_with_logits(
-                conf[has_noobj],
-                torch.zeros_like(conf[has_noobj]),
+                conf_logits,
+                zeros,
                 reduction='sum'
             )
         return self.l_noobj * loss
@@ -191,8 +199,14 @@ class YoloLoss(nn.Module):
         """
         ### CODE
         # your code here
-        tgt = (box_target_conf > 0.5).float()
-        loss = F.binary_cross_entropy_with_logits(box_pred_conf, tgt, reduction="sum")
+        pred = box_pred_conf.view(-1)
+
+        target = (box_target_conf.view(-1) > 0.5).float()
+        loss = F.binary_cross_entropy_with_logits(
+            pred,
+            target,
+            reduction='sum'
+        )
         return loss
 
     def get_regression_loss(self, box_pred_response, box_target_response):
@@ -207,16 +221,19 @@ class YoloLoss(nn.Module):
         reg_loss : scalar
 
         """
-        loss_xy = F.smooth_l1_loss(
-            box_pred_response[:, :2],
-            box_target_response[:, :2],
-            reduction='sum'
-        )
-        loss_wh = F.smooth_l1_loss(
-            torch.sqrt(box_pred_response[:, 2:4].clamp(min=1e-6)),
-            torch.sqrt(box_target_response[:, 2:4]),
-            reduction='sum'
-        )
+        ### CODE
+        # your code here
+        # Compute the regression loss due to the coordinates
+        pred_xy = box_pred_response[:, :2]
+        tgt_xy  = box_target_response[:, :2]
+
+
+        pred_wh = torch.sqrt(box_pred_response[:, 2:4].clamp(min=1e-6))
+        tgt_wh  = torch.sqrt(box_target_response[:, 2:4])
+
+        loss_xy = F.smooth_l1_loss(pred_xy, tgt_xy, reduction='sum')
+        loss_wh = F.smooth_l1_loss(pred_wh, tgt_wh, reduction='sum')
+
         return self.l_coord * (loss_xy + loss_wh)
 
     def forward(self, pred_tensor, target_boxes, target_cls, has_object_map):
